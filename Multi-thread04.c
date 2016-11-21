@@ -8,7 +8,7 @@
 void *connection_handler(void *);
 int main(int argc , char *argv[])
 {
-int socket_desc , new_socket , c , *new_sock;
+int socket_desc , new_socket , c , new_sock[100];
 struct sockaddr_in server , client;
 char *message;
 //Create socket
@@ -33,22 +33,29 @@ listen(socket_desc , 3);
 //Accept and incoming connection
 puts("Waiting for incoming connections...");
 c = sizeof(struct sockaddr_in);
-while( (new_socket = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c)) )
+pthread_t sniffer_thread[100];
+int i=0;
+while(1)
 {
+if((new_socket = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c))<0)
+{
+   puts("new_socket < 0");
+   break;
+}
 puts("Connection accepted");
 //Reply to the client
-pthread_t sniffer_thread;
-new_sock = malloc(1);
-*new_sock = new_socket;
-if( pthread_create( &sniffer_thread , NULL ,  connection_handler , (void*) new_sock) < 0)
+new_sock[i] = new_socket;
+if( pthread_create( &sniffer_thread[i] , NULL ,  connection_handler , &new_sock[i]) < 0)
 {
 perror("could not create thread");
 return 1;
 }
 //Now join the thread , so that we dont terminate before the thread
 //pthread_join( sniffer_thread , NULL);
+i++;
 puts("Handler assigned");
 }
+puts("Over");
 if (new_socket<0)
 {
 perror("accept failed");
@@ -92,7 +99,7 @@ void *connection_handler(void *socket_desc)
 	            no[i] = no[p] ;
 	            no[p] = tmp ;
 	    }
-	    printf("ANS:");
+	    printf("thread %d ANS:",sock);
 	    for(i=3;i>=0;i--)
 	            printf("%d",no[i]);
 	    printf("\n");
@@ -117,9 +124,14 @@ void *connection_handler(void *socket_desc)
 	      }
             } 
 	    int count2=0;
-	    while( (read_size = recv(sock , client_buffer , 256 , 0)) > 0)
+	    while(1)
 	    {
 	        // 把輸入的數字分解成 千位, 百位, 十位, 個位, 並把結果放入一個陣>列中
+		if ((read_size = recv(sock, client_buffer, 256, 0))<=0)
+		{
+		   printf("thread %d is out of line\n",sock);
+                   return 0;
+                }
 	        int i,pointer;
 	        for(i=0,pointer=3;client_buffer[i]!=0&&pointer>=0;i++)
 	        {
@@ -165,6 +177,6 @@ void *connection_handler(void *socket_desc)
         }
 	}   
 //Free the socket pointer
-free(socket_desc);
+pthread_exit(NULL);
 return 0;
 }
